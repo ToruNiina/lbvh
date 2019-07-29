@@ -11,7 +11,7 @@ and the following blog posts
 
 depending on [thrust](https://thrust.github.io/).
 
-It is capable to contain any object and allows morton code overlap.
+It can contain any object and also allows morton code overlap.
 
 If the morton codes of objects are the same, it internally assign an AABB to the
 group of objects that have the same morton code and consider the AABB as a leaf
@@ -148,50 +148,47 @@ class bvh
     bvh_device<real_type, object_type>  get_device_repr()       noexcept;
     cbvh_device<real_type, object_type> get_device_repr() const noexcept;
 };
+namespace detail {
+template<typename Real, typename Object, bool IsConst>
+struct basic_device_bvh
+{
+    using real_type  = Real;
+    using aabb_type  = aabb<real_type>;
+    using node_type  = detail::node;
+    using index_type = std::uint32_t;
+    using object_type = Object;
 
-template<typename Real, typename Objects, typename OutputIterator, bool IsConst>
+    unsigned int num_nodes;   // (# of internal node) + (# of leaves), 2N+1
+    unsigned int num_leaves;  // (# of leaves), N
+    unsigned int num_objects; // (# of objects) ; can be larger than N
+
+    /* const if IsConst is true */ node_type  * nodes;
+    /* const if IsConst is true */ aabb_type  * aabbs;
+    /* const if IsConst is true */ index_type * ranges;
+    /* const if IsConst is true */ index_type * indices;
+    /* const if IsConst is true */ object_type* objects;
+};
+}
+template<typename Real, typename Object>
+using  bvh_device = detail::basic_device_bvh<Real, Object, false>;
+template<typename Real, typename Object>
+using cbvh_device = detail::basic_device_bvh<Real, Object, true>;
+```
+
+## queries
+
+```cpp
+template<typename Real, typename Objects, bool IsConst, typename OutputIterator>
 __device__
 unsigned int query_device(
         const detail::basic_device_bvh<Real, Objects, IsConst>& bvh,
         const aabb<Real>& q, unsigned int max_buffer_size,
         OutputIterator outiter) noexcept
 
-template<typename Real, typename Object>
-struct bvh_device
-{
-    using real_type  = Real;
-    using aabb_type  = aabb<real_type>;
-    using node_type  = detail::node;
-    using index_type = std::uint32_t;
-    using object_type = Object;
-
-    unsigned int num_nodes;   // (# of internal node) + (# of leaves), 2N+1
-    unsigned int num_leaves;  // (# of leaves), N
-    unsigned int num_objects; // (# of objects) ; can be larger than N
-
-    node_type *  nodes;
-    aabb_type *  aabbs;
-    index_type*  ranges;
-    index_type*  indices;
-    object_type* objects;
-};
-template<typename Real, typename Object>
-struct cbvh_device
-{
-    using real_type  = Real;
-    using aabb_type  = aabb<real_type>;
-    using node_type  = detail::node;
-    using index_type = std::uint32_t;
-    using object_type = Object;
-
-    unsigned int num_nodes;   // (# of internal node) + (# of leaves), 2N+1
-    unsigned int num_leaves;  // (# of leaves), N
-    unsigned int num_objects; // (# of objects) ; can be larger than N
-
-    node_type   const* nodes;
-    aabb_type   const* aabbs;
-    index_type  const* ranges;
-    index_type  const* indices;
-    object_type const* objects;
-};
+template<typename Real, typename Objects, bool IsConst,
+         typename DistanceCalculator>
+__device__
+thrust::pair<unsigned int, Real> query_device_nearest_neighbor(
+        const detail::basic_device_bvh<Real, Objects, IsConst>& bvh,
+        const vector_of_t<Real>& q, DistanceCalculator calc_dist) noexcept
 ```
