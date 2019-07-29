@@ -3,6 +3,8 @@
 #include "aabb.cuh"
 #include "morton_code.cuh"
 #include <thrust/swap.h>
+#include <thrust/pair.h>
+#include <thrust/tuple.h>
 #include <thrust/host_vector.h>
 #include <thrust/device_vector.h>
 #include <thrust/functional.h>
@@ -447,7 +449,7 @@ class bvh
 // requirements:
 // - OutputIterator should be writable and its object_type should be uint32_t
 //
-template<typename Real, typename Objects, typename OutputIterator, bool IsConst>
+template<typename Real, typename Objects, bool IsConst, typename OutputIterator>
 __device__
 unsigned int query_device(
         const detail::basic_device_bvh<Real, Objects, IsConst>& bvh,
@@ -509,6 +511,107 @@ unsigned int query_device(
     }
     while (stack < stack_ptr);
     return num_found;
+}
+
+// query object index that is the nearst to the query point.
+//
+// requirements:
+// - DistanceCalculator must be able to calc distance between a point to an object.
+//
+template<typename Real, typename Objects, bool IsConst,
+         typename DistanceCalculator>
+__device__
+thrust::pair<unsigned int, Real> query_device_nearest_neighbor(
+        const detail::basic_device_bvh<Real, Objects, IsConst>& bvh,
+        const vector_of_t<Real>& q, DistanceCalculator calc_dist) noexcept
+{
+    using bvh_type   = detail::basic_device_bvh<Real, Objects, IsConst>;
+    using real_type  = typename bvh_type::real_type;
+    using index_type = typename bvh_type::index_type;
+    using aabb_type  = typename bvh_type::aabb_type;
+    using node_type  = typename bvh_type::node_type;
+
+    // pair of {node_idx, mindist}
+    thrust::pair<index_type, real_type>  stack[64];
+    thrust::pair<index_type, real_type>* stack_ptr = stack;
+    *stack_ptr++ = thrust::make_pair(0, mindist(bvh.aabbs[0], q));
+
+    unsigned int nearest = 0xFFFFFFFF;
+    real_type dist_to_nearest_object = infinity<real_type>();
+    do
+    {
+        const auto node  = *--stack_ptr;
+        if(node.second > dist_to_nearest_object)
+        {
+            // if aabb mindist > already_found_mindist, it cannot have a nearest
+            continue;
+        }
+
+        const index_type L_idx = bvh.nodes[node.first].left_idx;
+        const index_type R_idx = bvh.nodes[node.first].right_idx;
+
+        const aabb_type& L_box = bvh.aabbs[L_idx];
+        const aabb_type& R_box = bvh.aabbs[R_idx];
+
+        const real_type L_mindist = mindist(L_box, q);
+        const real_type R_mindist = mindist(R_box, q);
+
+        const real_type L_minmaxdist = minmaxdist(L_box, q);
+        const real_type R_minmaxdist = minmaxdist(R_box, q);
+
+       // there should be an object that locates within minmaxdist.
+       dist_to_nearest_object = thrust::min(dist_to_nearest_object, L_minmaxdist);
+       dist_to_nearest_object = thrust::min(dist_to_nearest_object, R_minmaxdist);
+
+        if(L_mindist <= R_minmaxdist) // L is worth considering
+        {
+            const auto range_idx = bvh.nodes[L_idx].range_idx;
+            if(range_idx != 0) // leaf node
+            {
+                const index_type first = bvh.ranges[range_idx-1];
+                const index_type last  = bvh.ranges[range_idx];
+                for(index_type i = first; i < last; ++i)
+                {
+                    const index_type idx = bvh.indices[i];
+                    const real_type dist = calc_dist(q, bvh.objects[idx]);
+                    if(dist <= dist_to_nearest_object)
+                    {
+                        dist_to_nearest_object = dist;
+                        nearest = idx;
+                    }
+                }
+            }
+            else
+            {
+                *stack_ptr++ = thrust::make_pair(L_idx, L_mindist);
+            }
+        }
+        if(R_mindist <= L_minmaxdist) // R is worth considering
+        {
+            const auto range_idx = bvh.nodes[R_idx].range_idx;
+            if(range_idx != 0) // leaf node
+            {
+                const index_type first = bvh.ranges[range_idx-1];
+                const index_type last  = bvh.ranges[range_idx];
+                for(index_type i = first; i < last; ++i)
+                {
+                    const index_type idx = bvh.indices[i];
+                    const real_type dist = calc_dist(q, bvh.objects[idx]);
+                    if(dist <= dist_to_nearest_object)
+                    {
+                        dist_to_nearest_object = dist;
+                        nearest = idx;
+                    }
+                }
+            }
+            else
+            {
+                *stack_ptr++ = thrust::make_pair(R_idx, R_mindist);
+            }
+        }
+    }
+    while (stack < stack_ptr);
+    return thrust::make_pair(nearest, dist_to_nearest_object);
 }
 
 
