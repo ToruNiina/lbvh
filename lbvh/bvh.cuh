@@ -249,21 +249,12 @@ class bvh
         // Note: if objects_h_.size() == 1, this function already returns
         const auto inf = std::numeric_limits<real_type>::infinity();
 
-        node_type default_node;
-        default_node.parent_idx = 0xFFFFFFFF;
-        default_node.left_idx   = 0xFFFFFFFF;
-        default_node.right_idx  = 0xFFFFFFFF;
-        default_node.range_idx  = 0xFFFFFFFF;
-        this->nodes_.resize(objects_h_.size() * 2 - 1, default_node);
-
+        // --------------------------------------------------------------------
+        // calculate morton code of each points
         aabb_type default_aabb;
         default_aabb.upper.x = -inf; default_aabb.lower.x = inf;
         default_aabb.upper.y = -inf; default_aabb.lower.y = inf;
         default_aabb.upper.z = -inf; default_aabb.lower.z = inf;
-        this->aabbs_.resize(objects_h_.size() * 2 - 1, default_aabb);
-
-        // --------------------------------------------------------------------
-        // calculate morton code of each points
 
         const auto aabb_whole = thrust::reduce(
             thrust::make_transform_iterator(objects_d_.begin(), aabb_getter_type()),
@@ -273,7 +264,7 @@ class bvh
                 return merge(lhs, rhs);
             });
 
-        thrust::device_vector<std::uint32_t> morton(this->objects_d_.size());
+        thrust::device_vector<std::uint32_t> morton(this->objects_h_.size());
         thrust::transform(objects_d_.begin(), objects_d_.end(), morton.begin(),
             [aabb_whole] __device__ (const object_type& v) {
                 point_getter_type point_getter;
@@ -315,9 +306,13 @@ class bvh
         thrust::device_vector<index_type> number_of_objects(morton.size());
         thrust::device_vector<index_type> node_morton(morton.size());
 
-        thrust::reduce_by_key(morton.begin(), morton.end(),
+        const auto reduced = thrust::reduce_by_key(morton.begin(), morton.end(),
                               thrust::constant_iterator<index_type>(1),
                               node_morton.begin(), number_of_objects.begin());
+
+        const unsigned int num_leaves = thrust::distance(node_morton.begin(), reduced.first);
+        const unsigned int num_nodes  = num_leaves * 2 - 1;
+        assert(num_leaves != 0);
 
         thrust::inclusive_scan(number_of_objects.begin(), number_of_objects.end(),
                                this->ranges_.begin() + 1);
@@ -325,18 +320,27 @@ class bvh
         // --------------------------------------------------------------------
         // construct leaf nodes and aabbs
 
+        node_type default_node;
+        default_node.parent_idx = 0xFFFFFFFF;
+        default_node.left_idx   = 0xFFFFFFFF;
+        default_node.right_idx  = 0xFFFFFFFF;
+        default_node.range_idx  = 0xFFFFFFFF;
+        this->nodes_.resize(num_nodes, default_node);
+        this->aabbs_.resize(num_nodes, default_aabb);
+
         // values to capture ...
-        const auto invalid     = std::numeric_limits<index_type>::max();
-        const auto leaf_offset = objects_h_.size() - 1;
-        const auto self        = this->get_device_repr();
+        const auto invalid            = std::numeric_limits<index_type>::max();
+        const auto num_internal_nodes = num_leaves - 1;
+        const auto self               = this->get_device_repr();
         thrust::for_each(thrust::device,
             thrust::make_counting_iterator<index_type>(0),
-            thrust::make_counting_iterator<index_type>(objects_d_.size()),
-            [leaf_offset, self, inf, invalid] __device__ (const index_type idx)
+            thrust::make_counting_iterator<index_type>(num_leaves),
+            [num_internal_nodes, self, inf, invalid] __device__ (const index_type idx)
             {
-                self.nodes[leaf_offset + idx].range_idx = idx + 1;
-                self.nodes[leaf_offset + idx].left_idx  = invalid;
-                self.nodes[leaf_offset + idx].right_idx = invalid;
+                // skip region reserved for internal nodes
+                self.nodes[num_internal_nodes + idx].range_idx = idx + 1;
+                self.nodes[num_internal_nodes + idx].left_idx  = invalid;
+                self.nodes[num_internal_nodes + idx].right_idx = invalid;
 
                 // construct aabb that wraps all objects
                 aabb_getter_type aabb_getter;
@@ -349,7 +353,7 @@ class bvh
                 {
                     box = merge(box, aabb_getter(self.objects[self.indices[i]]));
                 }
-                self.aabbs[leaf_offset + idx] = box;
+                self.aabbs[num_internal_nodes + idx] = box;
                 return;
             });
 
@@ -357,10 +361,9 @@ class bvh
         // construct internal nodes
 
         const auto node_code = node_morton.data();
-        const auto num_leaves = objects_h_.size();
         thrust::for_each(thrust::device,
             thrust::make_counting_iterator<index_type>(0),
-            thrust::make_counting_iterator<index_type>(objects_h_.size() - 1),
+            thrust::make_counting_iterator<index_type>(num_internal_nodes),
             [self, node_code, num_leaves, inf] __device__ (const index_type idx)
             {
                 self.nodes[idx].range_idx  = 0; // 0 is for internal nodes
@@ -386,13 +389,12 @@ class bvh
         // --------------------------------------------------------------------
         // create AABB for each node by bottom-up strategy
 
-        const auto num_nodes = num_leaves - 1;
-        thrust::device_vector<int> flag_container(num_nodes, 0);
+        thrust::device_vector<int> flag_container(num_internal_nodes, 0);
         const auto flags = flag_container.data().get();
 
         thrust::for_each(thrust::device,
-            thrust::make_counting_iterator<index_type>(num_nodes),
-            thrust::make_counting_iterator<index_type>(num_nodes + num_leaves),
+            thrust::make_counting_iterator<index_type>(num_internal_nodes),
+            thrust::make_counting_iterator<index_type>(num_internal_nodes + num_leaves),
             [self, flags] __device__ (index_type idx)
             {
                 unsigned int parent = self.nodes[idx].parent_idx;
