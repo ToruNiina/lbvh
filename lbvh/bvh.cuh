@@ -115,7 +115,7 @@ inline uint2 determine_range(unsigned int* node_code, unsigned int num_leaves,
         }
         t >>= 1;
     }
-    const unsigned int jdx = idx + l * d;
+    unsigned int jdx = idx + l * d;
     if(d < 0)
     {
         thrust::swap(idx, jdx); // make it sure that idx < jdx
