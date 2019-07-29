@@ -40,6 +40,9 @@ struct basic_device_bvh<Real, Object, false>
     using index_type = std::uint32_t;
     using object_type = Object;
 
+    unsigned int num_nodes;   // (# of internal node) + (# of leaves), 2N+1
+    unsigned int num_leaves;  // (# of leaves)                          N
+    unsigned int num_objects; // (# of objects) ; can be larger than N
     node_type *  nodes;
     aabb_type *  aabbs;
     index_type*  ranges;
@@ -54,6 +57,10 @@ struct basic_device_bvh<Real, Object, true>
     using node_type  = detail::node;
     using index_type = std::uint32_t;
     using object_type = Object;
+
+    unsigned int num_nodes;   // (# of internal node) + (# of leaves), 2N+1
+    unsigned int num_leaves;  // (# of leaves)                          N
+    unsigned int num_objects; // (# of objects) ; can be larger than N
 
     node_type   const* nodes;
     aabb_type   const* aabbs;
@@ -213,6 +220,9 @@ class bvh
     bvh_device<real_type, object_type> get_device_repr()       noexcept
     {
         return bvh_device<real_type, object_type>{
+            static_cast<unsigned int>(nodes_.size()),
+            static_cast<unsigned int>((nodes_.size() + 1) / 2),
+            static_cast<unsigned int>(objects_d_.size()),
             nodes_.data().get(),  aabbs_.data().get(),
             ranges_.data().get(), indices_.data().get(),
             objects_d_.data().get()
@@ -221,6 +231,9 @@ class bvh
     cbvh_device<real_type, object_type> get_device_repr() const noexcept
     {
         return cbvh_device<real_type, object_type>{
+            static_cast<unsigned int>(nodes_.size()),
+            static_cast<unsigned int>((nodes_.size() + 1) / 2),
+            static_cast<unsigned int>(objects_d_.size()),
             nodes_.data().get(),  aabbs_.data().get(),
             ranges_.data().get(), indices_.data().get(),
             objects_d_.data().get()
