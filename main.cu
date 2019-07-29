@@ -21,6 +21,16 @@ struct point_getter
         return f;
     }
 };
+struct distance_calculator
+{
+    __device__
+    float operator()(const float4 point, const float4 object) const noexcept
+    {
+        return ::sqrtf((point.x - object.x) * (point.x - object.x) +
+                       (point.y - object.y) * (point.y - object.y) +
+                       (point.z - object.z) * (point.z - object.z));
+    }
+};
 
 int main()
 {
@@ -40,6 +50,8 @@ int main()
     lbvh::bvh<float, float4, point_getter, aabb_getter> bvh(ps.begin(), ps.end());
 
     const auto bvh_dev = bvh.get_device_repr();
+
+    std::cout << "testing query_device ...\n";
     thrust::for_each(thrust::device,
         thrust::make_counting_iterator<std::size_t>(0),
         thrust::make_counting_iterator<std::size_t>(N),
@@ -57,7 +69,7 @@ int main()
                 lbvh::aabb<float> query;
                 query.lower = make_float4(self.x-r, self.y-r, self.z-r, 0);
                 query.upper = make_float4(self.x+r, self.y+r, self.z+r, 0);
-                const auto num_found = query_device(bvh_dev, query, 10, buffer);
+                const auto num_found = lbvh::query_device(bvh_dev, query, 10, buffer);
 
                 for(unsigned int j=0; j<10; ++j)
                 {
@@ -74,6 +86,23 @@ int main()
                     assert(fabsf(self.z - other.z) < r); // of query box
                 }
             }
+            return ;
+        });
+
+    std::cout << "testing query_device_nearest_neighbor ...\n";
+    thrust::for_each(thrust::device,
+        thrust::make_counting_iterator<unsigned int>(0),
+        thrust::make_counting_iterator<unsigned int>(N),
+        [bvh_dev] __device__ (const unsigned int idx) {
+            const auto self    = bvh_dev.objects[idx];
+            const auto nearest = lbvh::query_device_nearest_neighbor(
+                    bvh_dev, self, distance_calculator());
+            const auto other   = bvh_dev.objects[nearest.first];
+            // of course, the nearest object is itself.
+            assert(nearest.second == 0.0f);
+            assert(self.x == other.x);
+            assert(self.y == other.y);
+            assert(self.z == other.z);
             return ;
         });
 
