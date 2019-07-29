@@ -19,6 +19,10 @@ node. It means that leaf node generally corresponds to a group of objects
 (in the normal case in which all the objects have different morton codes, each
 leaf node corresponds to one object).
 
+Also, nearest neighbor query based on the following paper is supported.
+
+- Nick Roussopoulos, Stephen Kelley, Frederic Vincent, "Nearest Neighbor Queries", ACM-SIGMOD (1995)
+
 ## sample code
 
 ```cpp
@@ -190,5 +194,4 @@ struct cbvh_device
     index_type  const* indices;
     object_type const* objects;
 };
-
 ```
