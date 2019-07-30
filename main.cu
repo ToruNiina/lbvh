@@ -71,7 +71,11 @@ int main()
                         assert(jdx == 0xFFFFFFFF);
                         continue;
                     }
-
+                    else
+                    {
+                        assert(jdx != 0xFFFFFFFF);
+                        assert(jdx < bvh_dev.num_objects);
+                    }
                     const auto other  = bvh_dev.objects[jdx];
                     assert(fabsf(self.x - other.x) < r); // check coordinates
                     assert(fabsf(self.y - other.y) < r); // are in the range

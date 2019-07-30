@@ -34,42 +34,32 @@ unsigned int query_device(
 
         if(intersects(q, bvh.aabbs[L_idx]))
         {
-            const auto range_idx = bvh.nodes[L_idx].range_idx;
-            if(range_idx != 0)
+            const auto obj_idx = bvh.nodes[L_idx].object_idx;
+            if(obj_idx != 0xFFFFFFFF)
             {
-                const index_type first = bvh.ranges[range_idx-1];
-                const index_type last  = bvh.ranges[range_idx];
-                for(index_type i = first; i < last; ++i)
+                if(num_found < max_buffer_size)
                 {
-                    if(num_found < max_buffer_size)
-                    {
-                        *outiter++ = bvh.indices[i];
-                    }
-                    ++num_found;
+                    *outiter++ = obj_idx;
                 }
+                ++num_found;
             }
-            else // range_idx == 0 means the node is not a leaf.
+            else // the node is not a leaf.
             {
                 *stack_ptr++ = L_idx;
             }
         }
         if(intersects(q, bvh.aabbs[R_idx]))
         {
-            const auto range_idx = bvh.nodes[R_idx].range_idx;
-            if(range_idx != 0)
+            const auto obj_idx = bvh.nodes[R_idx].object_idx;
+            if(obj_idx != 0xFFFFFFFF)
             {
-                const index_type first = bvh.ranges[range_idx-1];
-                const index_type last  = bvh.ranges[range_idx];
-                for(index_type i = first; i < last; ++i)
+                if(num_found < max_buffer_size)
                 {
-                    if(num_found < max_buffer_size)
-                    {
-                        *outiter++ = bvh.indices[i];
-                    }
-                    ++num_found;
+                    *outiter++ = obj_idx;
                 }
+                ++num_found;
             }
-            else // range_idx == 0 means the node is not a leaf.
+            else // the node is not a leaf.
             {
                 *stack_ptr++ = R_idx;
             }
@@ -131,20 +121,14 @@ thrust::pair<unsigned int, Real> query_device_nearest_neighbor(
 
         if(L_mindist <= R_minmaxdist) // L is worth considering
         {
-            const auto range_idx = bvh.nodes[L_idx].range_idx;
-            if(range_idx != 0) // leaf node
+            const auto obj_idx = bvh.nodes[L_idx].object_idx;
+            if(obj_idx != 0xFFFFFFFF) // leaf node
             {
-                const index_type first = bvh.ranges[range_idx-1];
-                const index_type last  = bvh.ranges[range_idx];
-                for(index_type i = first; i < last; ++i)
+                const real_type dist = calc_dist(q, bvh.objects[obj_idx]);
+                if(dist <= dist_to_nearest_object)
                 {
-                    const index_type idx = bvh.indices[i];
-                    const real_type dist = calc_dist(q, bvh.objects[idx]);
-                    if(dist <= dist_to_nearest_object)
-                    {
-                        dist_to_nearest_object = dist;
-                        nearest = idx;
-                    }
+                    dist_to_nearest_object = dist;
+                    nearest = obj_idx;
                 }
             }
             else
@@ -154,20 +138,14 @@ thrust::pair<unsigned int, Real> query_device_nearest_neighbor(
         }
         if(R_mindist <= L_minmaxdist) // R is worth considering
         {
-            const auto range_idx = bvh.nodes[R_idx].range_idx;
-            if(range_idx != 0) // leaf node
+            const auto obj_idx = bvh.nodes[R_idx].object_idx;
+            if(obj_idx != 0xFFFFFFFF) // leaf node
             {
-                const index_type first = bvh.ranges[range_idx-1];
-                const index_type last  = bvh.ranges[range_idx];
-                for(index_type i = first; i < last; ++i)
+                const real_type dist = calc_dist(q, bvh.objects[obj_idx]);
+                if(dist <= dist_to_nearest_object)
                 {
-                    const index_type idx = bvh.indices[i];
-                    const real_type dist = calc_dist(q, bvh.objects[idx]);
-                    if(dist <= dist_to_nearest_object)
-                    {
-                        dist_to_nearest_object = dist;
-                        nearest = idx;
-                    }
+                    dist_to_nearest_object = dist;
+                    nearest = obj_idx;
                 }
             }
             else
