@@ -1,4 +1,4 @@
-#include "lbvh/bvh.cuh"
+#include "lbvh.cuh"
 #include <random>
 #include <vector>
 
@@ -11,14 +11,6 @@ struct aabb_getter
         retval.upper = f;
         retval.lower = f;
         return retval;
-    }
-};
-struct point_getter
-{
-    __device__
-    float4 operator()(const float4 f) const noexcept
-    {
-        return f;
     }
 };
 struct distance_calculator
@@ -47,7 +39,7 @@ int main()
         p.z = uni(mt);
     }
 
-    lbvh::bvh<float, float4, point_getter, aabb_getter> bvh(ps.begin(), ps.end());
+    lbvh::bvh<float, float4, aabb_getter> bvh(ps.begin(), ps.end());
 
     const auto bvh_dev = bvh.get_device_repr();
 

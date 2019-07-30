@@ -166,12 +166,40 @@ inline unsigned int find_split(unsigned int* node_code, unsigned int num_leaves,
 }
 } // detail
 
+template<typename Real, typename Object, typename AABBGetter>
+struct default_morton_code_calculator
+{
+    default_morton_code_calculator(aabb<Real> w): whole(w) {}
+    default_morton_code_calculator()  = default;
+    ~default_morton_code_calculator() = default;
+    default_morton_code_calculator(default_morton_code_calculator const&) = default;
+    default_morton_code_calculator(default_morton_code_calculator&&)      = default;
+    default_morton_code_calculator& operator=(default_morton_code_calculator const&) = default;
+    default_morton_code_calculator& operator=(default_morton_code_calculator&&)      = default;
+
+    __device__ __host__
+    inline unsigned int operator()(const Object& obj) noexcept
+    {
+        AABBGetter get_aabb;
+        auto p = centroid(get_aabb(obj));
+        p.x -= whole.lower.x;
+        p.y -= whole.lower.y;
+        p.z -= whole.lower.z;
+        p.x /= (whole.upper.x - whole.lower.x);
+        p.y /= (whole.upper.y - whole.lower.y);
+        p.z /= (whole.upper.z - whole.lower.z);
+        return morton_code(p);
+    }
+    aabb<Real> whole;
+};
+
 template<typename Real, typename Object>
 using  bvh_device = detail::basic_device_bvh<Real, Object, false>;
 template<typename Real, typename Object>
 using cbvh_device = detail::basic_device_bvh<Real, Object, true>;
 
-template<typename Real, typename Object, typename PointGetter, typename AABBGetter>
+template<typename Real, typename Object, typename AABBGetter,
+         typename MortonCodeCalculator = default_morton_code_calculator<Real, Object, AABBGetter>>
 class bvh
 {
   public:
@@ -180,8 +208,8 @@ class bvh
     using object_type = Object;
     using aabb_type   = aabb<real_type>;
     using node_type   = detail::node;
-    using point_getter_type = PointGetter;
     using aabb_getter_type  = AABBGetter;
+    using morton_code_calculator_type = MortonCodeCalculator;
 
   public:
 
@@ -247,12 +275,10 @@ class bvh
         assert(objects_h_.size() == objects_d_.size());
         if(objects_h_.size() == 0u) {return;}
 
-        // BVH has N-1 internal nodes and N leaf nodes.
-        // Note: if objects_h_.size() == 1, this function already returns
-        const auto inf = std::numeric_limits<real_type>::infinity();
-
         // --------------------------------------------------------------------
         // calculate morton code of each points
+
+        const auto inf = std::numeric_limits<real_type>::infinity();
         aabb_type default_aabb;
         default_aabb.upper.x = -inf; default_aabb.lower.x = inf;
         default_aabb.upper.y = -inf; default_aabb.lower.y = inf;
@@ -268,17 +294,7 @@ class bvh
 
         thrust::device_vector<std::uint32_t> morton(this->objects_h_.size());
         thrust::transform(objects_d_.begin(), objects_d_.end(), morton.begin(),
-            [aabb_whole] __device__ (const object_type& v) {
-                point_getter_type point_getter;
-                auto p = point_getter(v);
-                p.x -= aabb_whole.lower.x;
-                p.y -= aabb_whole.lower.y;
-                p.z -= aabb_whole.lower.z;
-                p.x /= (aabb_whole.upper.x - aabb_whole.lower.x);
-                p.y /= (aabb_whole.upper.y - aabb_whole.lower.y);
-                p.z /= (aabb_whole.upper.z - aabb_whole.lower.z);
-                return morton_code(p);
-            });
+                          morton_code_calculator_type(aabb_whole));
 
         // --------------------------------------------------------------------
         // sort object-indices by morton code
