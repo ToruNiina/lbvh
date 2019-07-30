@@ -453,7 +453,7 @@ template<typename Real, typename Objects, bool IsConst, typename OutputIterator>
 __device__
 unsigned int query_device(
         const detail::basic_device_bvh<Real, Objects, IsConst>& bvh,
-        const aabb<Real>& q, unsigned int max_buffer_size,
+        const aabb<Real>& q, const unsigned int max_buffer_size,
         OutputIterator outiter) noexcept
 {
     using bvh_type   = detail::basic_device_bvh<Real, Objects, IsConst>;
@@ -481,7 +481,10 @@ unsigned int query_device(
                 const index_type last  = bvh.ranges[range_idx];
                 for(index_type i = first; i < last; ++i)
                 {
-                    *outiter++ = bvh.indices[i];
+                    if(num_found < max_buffer_size)
+                    {
+                        *outiter++ = bvh.indices[i];
+                    }
                     ++num_found;
                 }
             }
@@ -499,7 +502,10 @@ unsigned int query_device(
                 const index_type last  = bvh.ranges[range_idx];
                 for(index_type i = first; i < last; ++i)
                 {
-                    *outiter++ = bvh.indices[i];
+                    if(num_found < max_buffer_size)
+                    {
+                        *outiter++ = bvh.indices[i];
+                    }
                     ++num_found;
                 }
             }
