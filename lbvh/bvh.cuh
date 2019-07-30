@@ -166,7 +166,7 @@ inline unsigned int find_split(unsigned int* node_code, unsigned int num_leaves,
 }
 } // detail
 
-template<typename Real, typename Object, typename AABBGetter>
+template<typename Real, typename Object>
 struct default_morton_code_calculator
 {
     default_morton_code_calculator(aabb<Real> w): whole(w) {}
@@ -178,10 +178,9 @@ struct default_morton_code_calculator
     default_morton_code_calculator& operator=(default_morton_code_calculator&&)      = default;
 
     __device__ __host__
-    inline unsigned int operator()(const Object& obj) noexcept
+    inline unsigned int operator()(const Object&, const aabb<Real>& box) noexcept
     {
-        AABBGetter get_aabb;
-        auto p = centroid(get_aabb(obj));
+        auto p = centroid(box);
         p.x -= whole.lower.x;
         p.y -= whole.lower.y;
         p.z -= whole.lower.z;
@@ -199,7 +198,7 @@ template<typename Real, typename Object>
 using cbvh_device = detail::basic_device_bvh<Real, Object, true>;
 
 template<typename Real, typename Object, typename AABBGetter,
-         typename MortonCodeCalculator = default_morton_code_calculator<Real, Object, AABBGetter>>
+         typename MortonCodeCalculator = default_morton_code_calculator<Real, Object>>
 class bvh
 {
   public:
@@ -275,6 +274,8 @@ class bvh
         assert(objects_h_.size() == objects_d_.size());
         if(objects_h_.size() == 0u) {return;}
 
+        const unsigned int num_objects = objects_h_.size();
+
         // --------------------------------------------------------------------
         // calculate morton code of each points
 
@@ -284,20 +285,25 @@ class bvh
         default_aabb.upper.y = -inf; default_aabb.lower.y = inf;
         default_aabb.upper.z = -inf; default_aabb.lower.z = inf;
 
+        this->aabbs_.resize(num_objects * 2 - 1, default_aabb);
+
+        thrust::transform(this->objects_d_.begin(), this->objects_d_.end(),
+                          aabbs_.begin() + num_objects - 1, aabb_getter_type());
+
         const auto aabb_whole = thrust::reduce(
-            thrust::make_transform_iterator(objects_d_.begin(), aabb_getter_type()),
-            thrust::make_transform_iterator(objects_d_.end(),   aabb_getter_type()),
-            default_aabb,
+            aabbs_.begin() + num_objects - 1, aabbs_.end(), default_aabb,
             [] __device__ (const aabb_type& lhs, const aabb_type& rhs) {
                 return merge(lhs, rhs);
             });
 
-        thrust::device_vector<std::uint32_t> morton(this->objects_h_.size());
-        thrust::transform(objects_d_.begin(), objects_d_.end(), morton.begin(),
-                          morton_code_calculator_type(aabb_whole));
+        thrust::device_vector<std::uint32_t> morton(num_objects);
+        thrust::transform(this->objects_d_.begin(), this->objects_d_.end(),
+            aabbs_.begin() + num_objects - 1, morton.begin(),
+            morton_code_calculator_type(aabb_whole));
 
         // --------------------------------------------------------------------
         // sort object-indices by morton code
+
         this->indices_.resize(objects_h_.size());
         thrust::copy(thrust::make_counting_iterator<index_type>(0),
                      thrust::make_counting_iterator<index_type>(objects_h_.size()),
@@ -344,7 +350,6 @@ class bvh
         default_node.right_idx  = 0xFFFFFFFF;
         default_node.range_idx  = 0xFFFFFFFF;
         this->nodes_.resize(num_nodes, default_node);
-        this->aabbs_.resize(num_nodes, default_aabb);
 
         // values to capture ...
         const auto invalid            = std::numeric_limits<index_type>::max();
