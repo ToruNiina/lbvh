@@ -11,13 +11,10 @@ and the following blog posts
 
 depending on [thrust](https://thrust.github.io/).
 
-It can contain any object and also allows morton code overlap.
+It can contain any object and also handles morton code overlap.
 
-If the morton codes of objects are the same, it internally assign an AABB to the
-group of objects that have the same morton code and consider the AABB as a leaf
-node. It means that leaf node generally corresponds to a group of objects
-(in the normal case in which all the objects have different morton codes, each
-leaf node corresponds to one object).
+If the morton codes of objects are the same, it appends object index to the
+morton code and use the "extended" indices as described in the paper.
 
 Also, nearest neighbor query based on the following paper is supported.
 
