@@ -41,16 +41,6 @@ struct aabb_getter
         // calculate aabb of object ...
     }
 };
-struct point_getter
-{
-    // return float4 if your object uses float.
-    // if you chose double, return double4.
-    __device__
-    float4 operator()(const object& f) const noexcept
-    {
-        // calculate representative coordinate of object to compute morton code.
-    }
-};
 
 int main()
 {
@@ -59,7 +49,7 @@ int main()
     // initialize objs ...
 
     // construct a bvh
-    lbvh::bvh<float, object, point_getter, aabb_getter> bvh(objs.begin(), objs.end());
+    lbvh::bvh<float, object, aabb_getter> bvh(objs.begin(), objs.end());
 
     // get a set of device (raw) pointers to use it in device functions.
     // Do not use this on host!
@@ -122,7 +112,8 @@ inline aabb<T> merge(const aabb<T>& lhs, const aabb<T>& rhs) noexcept
 ### BVH
 
 ```cpp
-template<typename Real, typename Object, typename PointGetter, typename AABBGetter>
+template<typename Real, typename Object, typename AABBGetter,
+         typename MortonCodeCalculator = default_morton_code_calculator<Real, Object, AABBGetter>>
 class bvh
 {
   public:
