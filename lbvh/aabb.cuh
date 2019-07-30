@@ -125,5 +125,16 @@ inline double minmaxdist(const aabb<double>& lhs, const double4& rhs) noexcept
     return ::fminf(dx, ::fminf(dy, dz));
 }
 
+template<typename T>
+__device__ __host__
+inline typename vector_of<T>::type centroid(const aabb<T>& box) noexcept
+{
+    typename vector_of<T>::type c;
+    c.x = (box.upper.x + box.lower.x) * 0.5;
+    c.y = (box.upper.y + box.lower.y) * 0.5;
+    c.z = (box.upper.z + box.lower.z) * 0.5;
+    return c;
+}
+
 } // lbvh
 #endif// LBVH_AABB_CUH
