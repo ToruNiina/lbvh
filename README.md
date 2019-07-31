@@ -197,12 +197,11 @@ __device__
 unsigned int query_device(
         const detail::basic_device_bvh<Real, Objects, IsConst>& bvh,
         const query_overlap<Real>& q, unsigned int max_buffer_size,
-        OutputIterator outiter) noexcept
+        OutputIterator outiter) noexcept;
 
-template<typename Real, typename Objects, bool IsConst,
-         typename DistanceCalculator>
+template<typename Real, typename Objects, bool IsConst, typename DistanceCalculator>
 __device__
-thrust::pair<unsigned int, Real> query_device_nearest_neighbor(
+thrust::pair<unsigned int, Real> query_device(
         const detail::basic_device_bvh<Real, Objects, IsConst>& bvh,
         const query_nearest<Real>& q, DistanceCalculator calc_dist) noexcept
 ```
