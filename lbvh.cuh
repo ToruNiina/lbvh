@@ -4,6 +4,7 @@
 #include "lbvh/aabb.cuh"
 #include "lbvh/bvh.cuh"
 #include "lbvh/morton_code.cuh"
+#include "lbvh/predicator.cuh"
 #include "lbvh/query.cuh"
 #include "lbvh/utility.cuh"
 

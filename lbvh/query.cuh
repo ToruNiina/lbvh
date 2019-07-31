@@ -1,6 +1,6 @@
 #ifndef LBVH_QUERY_CUH
 #define LBVH_QUERY_CUH
-#include "query.cuh"
+#include "predicator.cuh"
 
 namespace lbvh
 {
@@ -13,7 +13,7 @@ template<typename Real, typename Objects, bool IsConst, typename OutputIterator>
 __device__
 unsigned int query_device(
         const detail::basic_device_bvh<Real, Objects, IsConst>& bvh,
-        const aabb<Real>& q, const unsigned int max_buffer_size,
+        const query_overlap<Real> q, const unsigned int max_buffer_size,
         OutputIterator outiter) noexcept
 {
     using bvh_type   = detail::basic_device_bvh<Real, Objects, IsConst>;
@@ -32,7 +32,7 @@ unsigned int query_device(
         const index_type L_idx = bvh.nodes[node].left_idx;
         const index_type R_idx = bvh.nodes[node].right_idx;
 
-        if(intersects(q, bvh.aabbs[L_idx]))
+        if(intersects(q.target, bvh.aabbs[L_idx]))
         {
             const auto obj_idx = bvh.nodes[L_idx].object_idx;
             if(obj_idx != 0xFFFFFFFF)
@@ -48,7 +48,7 @@ unsigned int query_device(
                 *stack_ptr++ = L_idx;
             }
         }
-        if(intersects(q, bvh.aabbs[R_idx]))
+        if(intersects(q.target, bvh.aabbs[R_idx]))
         {
             const auto obj_idx = bvh.nodes[R_idx].object_idx;
             if(obj_idx != 0xFFFFFFFF)
@@ -77,9 +77,9 @@ unsigned int query_device(
 template<typename Real, typename Objects, bool IsConst,
          typename DistanceCalculator>
 __device__
-thrust::pair<unsigned int, Real> query_device_nearest_neighbor(
+thrust::pair<unsigned int, Real> query_device(
         const detail::basic_device_bvh<Real, Objects, IsConst>& bvh,
-        const vector_of_t<Real>& q, DistanceCalculator calc_dist) noexcept
+        const query_nearest<Real>& q, DistanceCalculator calc_dist) noexcept
 {
     using bvh_type   = detail::basic_device_bvh<Real, Objects, IsConst>;
     using real_type  = typename bvh_type::real_type;
@@ -90,7 +90,7 @@ thrust::pair<unsigned int, Real> query_device_nearest_neighbor(
     // pair of {node_idx, mindist}
     thrust::pair<index_type, real_type>  stack[64];
     thrust::pair<index_type, real_type>* stack_ptr = stack;
-    *stack_ptr++ = thrust::make_pair(0, mindist(bvh.aabbs[0], q));
+    *stack_ptr++ = thrust::make_pair(0, mindist(bvh.aabbs[0], q.target));
 
     unsigned int nearest = 0xFFFFFFFF;
     real_type dist_to_nearest_object = infinity<real_type>();
@@ -109,11 +109,11 @@ thrust::pair<unsigned int, Real> query_device_nearest_neighbor(
         const aabb_type& L_box = bvh.aabbs[L_idx];
         const aabb_type& R_box = bvh.aabbs[R_idx];
 
-        const real_type L_mindist = mindist(L_box, q);
-        const real_type R_mindist = mindist(R_box, q);
+        const real_type L_mindist = mindist(L_box, q.target);
+        const real_type R_mindist = mindist(R_box, q.target);
 
-        const real_type L_minmaxdist = minmaxdist(L_box, q);
-        const real_type R_minmaxdist = minmaxdist(R_box, q);
+        const real_type L_minmaxdist = minmaxdist(L_box, q.target);
+        const real_type R_minmaxdist = minmaxdist(R_box, q.target);
 
        // there should be an object that locates within minmaxdist.
        dist_to_nearest_object = thrust::min(dist_to_nearest_object, L_minmaxdist);
@@ -124,7 +124,7 @@ thrust::pair<unsigned int, Real> query_device_nearest_neighbor(
             const auto obj_idx = bvh.nodes[L_idx].object_idx;
             if(obj_idx != 0xFFFFFFFF) // leaf node
             {
-                const real_type dist = calc_dist(q, bvh.objects[obj_idx]);
+                const real_type dist = calc_dist(q.target, bvh.objects[obj_idx]);
                 if(dist <= dist_to_nearest_object)
                 {
                     dist_to_nearest_object = dist;
@@ -141,7 +141,7 @@ thrust::pair<unsigned int, Real> query_device_nearest_neighbor(
             const auto obj_idx = bvh.nodes[R_idx].object_idx;
             if(obj_idx != 0xFFFFFFFF) // leaf node
             {
-                const real_type dist = calc_dist(q, bvh.objects[obj_idx]);
+                const real_type dist = calc_dist(q.target, bvh.objects[obj_idx]);
                 if(dist <= dist_to_nearest_object)
                 {
                     dist_to_nearest_object = dist;
