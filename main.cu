@@ -58,10 +58,11 @@ int main()
                     buffer[j] = 0xFFFFFFFF;
                 }
                 const float r = dr * i;
-                lbvh::aabb<float> query;
-                query.lower = make_float4(self.x-r, self.y-r, self.z-r, 0);
-                query.upper = make_float4(self.x+r, self.y+r, self.z+r, 0);
-                const auto num_found = lbvh::query_device(bvh_dev, query, 10, buffer);
+                lbvh::aabb<float> query_box;
+                query_box.lower = make_float4(self.x-r, self.y-r, self.z-r, 0);
+                query_box.upper = make_float4(self.x+r, self.y+r, self.z+r, 0);
+                const auto num_found = lbvh::query_device(
+                        bvh_dev, lbvh::overlaps(query_box), 10, buffer);
 
                 for(unsigned int j=0; j<10; ++j)
                 {
@@ -90,12 +91,12 @@ int main()
         thrust::make_counting_iterator<unsigned int>(0),
         thrust::make_counting_iterator<unsigned int>(N),
         [bvh_dev] __device__ (const unsigned int idx) {
-            const auto self    = bvh_dev.objects[idx];
-            const auto nearest = lbvh::query_device_nearest_neighbor(
-                    bvh_dev, self, distance_calculator());
-            const auto other   = bvh_dev.objects[nearest.first];
+            const auto self = bvh_dev.objects[idx];
+            const auto nest = lbvh::query_device(bvh_dev, lbvh::nearest(self),
+                                                 distance_calculator());
+            const auto other   = bvh_dev.objects[nest.first];
             // of course, the nearest object is itself.
-            assert(nearest.second == 0.0f);
+            assert(nest.second == 0.0f);
             assert(self.x == other.x);
             assert(self.y == other.y);
             assert(self.z == other.z);
