@@ -241,8 +241,9 @@ class bvh
   public:
 
     template<typename InputIterator>
-    bvh(InputIterator first, InputIterator last)
-        : objects_h_(first, last), objects_d_(objects_h_)
+    bvh(InputIterator first, InputIterator last, bool query_host_enabled = false)
+        : objects_h_(first, last), objects_d_(objects_h_),
+          query_host_enabled_(query_host_enabled)
     {
         this->construct();
     }
@@ -254,11 +255,16 @@ class bvh
     bvh& operator=(const bvh&) = default;
     bvh& operator=(bvh&&)      = default;
 
+    bool  query_host_enabled() const noexcept {return query_host_enabled_;}
+    bool& query_host_enabled()       noexcept {return query_host_enabled_;}
+
     void clear()
     {
         this->objects_h_.clear();
         this->objects_d_.clear();
+        this->aabbs_h_.clear();
         this->aabbs_.clear();
+        this->nodes_h_.clear();
         this->nodes_.clear();
         return ;
     }
@@ -430,6 +436,12 @@ class bvh
                 }
                 return;
             });
+
+        if(this->query_host_enabled_)
+        {
+            aabbs_h_ = aabbs_;
+            nodes_h_ = nodes_;
+        }
         return;
     }
 
@@ -437,8 +449,11 @@ class bvh
 
     thrust::host_vector  <object_type>   objects_h_;
     thrust::device_vector<object_type>   objects_d_;
+    thrust::host_vector  <aabb_type>     aabbs_h_;
     thrust::device_vector<aabb_type>     aabbs_;
+    thrust::host_vector  <node_type>     nodes_h_;
     thrust::device_vector<node_type>     nodes_;
+    bool query_host_enabled_;
 };
 
 } // lbvh
