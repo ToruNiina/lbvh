@@ -39,6 +39,17 @@ struct aabb_getter
     }
 };
 
+// this struct will be used in nearest neighbor query (If you don't need nearest
+// neighbor query, you don't need to implement this).
+struct distance_calculator
+{
+    __device__
+    float operator()(const float4 pos, const object& f) const noexcept
+    {
+        // calculate distance...
+    }
+};
+
 int main()
 {
     std::vector<objects> objs;
@@ -63,13 +74,13 @@ int main()
             const auto self = get_point(bvh_dev.objects[idx]);
 
             // make a query box.
-            const lbvh::aabb<float> query(
+            const lbvh::aabb<float> box(
                     make_float4(self.x-0.1, self.y-0.1, self.z-0.1, 0),
                     make_float4(self.x+0.1, self.y+0.1, self.z+0.1, 0)
                 );
 
             // send a query!
-            const auto num_found = query_device(bvh_dev, query, 10, buffer);
+            const auto num_found = query_device(bvh_dev, overlaps(box), 10, buffer);
 
             for(unsigned int j=0; j<num_found; ++j)
             {
@@ -77,6 +88,10 @@ int main()
                 const object&      other     = bvh_dev.objects[other_idx];
                 // do some stuff ...
             }
+
+            const float3 pos = make_float3(0.0, 1.0, 2.0);
+            const auto nearest = query_device(bvh_dev, nearest(pos), distance_calculator());
+
             return ;
         });
 
@@ -166,11 +181,22 @@ using cbvh_device = detail::basic_device_bvh<Real, Object, true>;
 ## queries
 
 ```cpp
+template<typename Real>
+__device__ __host__
+query_overlap<Real> overlaps(const aabb<Real>& region) noexcept;
+
+template<typename Real>
+__device__ __host__
+inline query_nearest<Real> nearest(const /*Real4 or Real3*/& point) noexcept
+{
+    return query_nearest<Real>(point);
+}
+
 template<typename Real, typename Objects, bool IsConst, typename OutputIterator>
 __device__
 unsigned int query_device(
         const detail::basic_device_bvh<Real, Objects, IsConst>& bvh,
-        const aabb<Real>& q, unsigned int max_buffer_size,
+        const query_overlap<Real>& q, unsigned int max_buffer_size,
         OutputIterator outiter) noexcept
 
 template<typename Real, typename Objects, bool IsConst,
@@ -178,5 +204,5 @@ template<typename Real, typename Objects, bool IsConst,
 __device__
 thrust::pair<unsigned int, Real> query_device_nearest_neighbor(
         const detail::basic_device_bvh<Real, Objects, IsConst>& bvh,
-        const vector_of_t<Real>& q, DistanceCalculator calc_dist) noexcept
+        const query_nearest<Real>& q, DistanceCalculator calc_dist) noexcept
 ```
