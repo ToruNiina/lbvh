@@ -13,8 +13,8 @@ template<typename Real, typename Objects, bool IsConst, typename OutputIterator>
 __device__
 unsigned int query_device(
         const detail::basic_device_bvh<Real, Objects, IsConst>& bvh,
-        const query_overlap<Real> q, const unsigned int max_buffer_size,
-        OutputIterator outiter) noexcept
+        const query_overlap<Real> q, OutputIterator outiter,
+        const unsigned int max_buffer_size = 0xFFFFFFFF) noexcept
 {
     using bvh_type   = detail::basic_device_bvh<Real, Objects, IsConst>;
     using index_type = typename bvh_type::index_type;
