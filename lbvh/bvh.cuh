@@ -445,6 +445,13 @@ class bvh
         return;
     }
 
+    thrust::host_vector<object_type> const& objects_host() const noexcept {return objects_h_;}
+    thrust::host_vector<object_type>&       objects_host()       noexcept {return objects_h_;}
+    thrust::host_vector<node_type> const& nodes_host() const noexcept {return nodes_h_;}
+    thrust::host_vector<node_type>&       nodes_host()       noexcept {return nodes_h_;}
+    thrust::host_vector<aabb_type> const& aabbs_host() const noexcept {return aabbs_h_;}
+    thrust::host_vector<aabb_type>&       aabbs_host()       noexcept {return aabbs_h_;}
+
   private:
 
     thrust::host_vector  <object_type>   objects_h_;
