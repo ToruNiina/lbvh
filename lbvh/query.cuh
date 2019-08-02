@@ -157,5 +157,148 @@ thrust::pair<unsigned int, Real> query_device(
     while (stack < stack_ptr);
     return thrust::make_pair(nearest, dist_to_nearest_object);
 }
+
+template<typename Real, typename Objects, typename AABBGetter,
+         typename MortonCodeCalculator, typename OutputIterator>
+unsigned int query_host(
+    const bvh<Real, Objects, AABBGetter, MortonCodeCalculator>& bvh,
+    const query_overlap<Real> q, OutputIterator outiter,
+    const unsigned int max_buffer_size = 0xFFFFFFFF) noexcept
+{
+    using bvh_type   = detail::basic_device_bvh<Real, Objects, IsConst>;
+    using index_type = typename bvh_type::index_type;
+    using aabb_type  = typename bvh_type::aabb_type;
+    using node_type  = typename bvh_type::node_type;
+
+    std::vector<std::size_t> stack = {0};
+    stack.reserve(64);
+
+    unsigned int num_found = 0;
+    do
+    {
+        const index_type node  = stack.back(); stack.pop_back();
+        const index_type L_idx = bvh.nodes_host()[node].left_idx;
+        const index_type R_idx = bvh.nodes_host()[node].right_idx;
+
+        if(intersects(q.target, bvh.aabbs_host()[L_idx]))
+        {
+            const auto obj_idx = bvh.nodes_host()[L_idx].object_idx;
+            if(obj_idx != 0xFFFFFFFF)
+            {
+                if(num_found < max_buffer_size)
+                {
+                    *outiter++ = obj_idx;
+                }
+                ++num_found;
+            }
+            else // the node is not a leaf.
+            {
+                stack.push_back(L_idx);
+            }
+        }
+        if(intersects(q.target, bvh.aabbs_host()[R_idx]))
+        {
+            const auto obj_idx = bvh.nodes_host()[R_idx].object_idx;
+            if(obj_idx != 0xFFFFFFFF)
+            {
+                if(num_found < max_buffer_size)
+                {
+                    *outiter++ = obj_idx;
+                }
+                ++num_found;
+            }
+            else // the node is not a leaf.
+            {
+                stack.push_back(R_idx);
+            }
+        }
+    }
+    while (stack < stack_ptr);
+    return num_found;
+}
+
+template<typename Real, typename Objects, typename AABBGetter,
+         typename MortonCodeCalculator, typename DistanceCalculator>
+std::pair<unsigned int, Real> query_host(
+        const bvh<Real, Objects, AABBGetter, MortonCodeCalculator>& bvh,
+        const query_nearest<Real>& q, DistanceCalculator calc_dist) noexcept
+{
+    using bvh_type   = detail::basic_device_bvh<Real, Objects, IsConst>;
+    using real_type  = typename bvh_type::real_type;
+    using index_type = typename bvh_type::index_type;
+    using aabb_type  = typename bvh_type::aabb_type;
+    using node_type  = typename bvh_type::node_type;
+
+    // pair of {node_idx, mindist}
+    std::vector<std::pair<index_type, real_type>> stack = {
+        {0, mindist(bvh.aabbs_host()[0], q.target)}
+    };
+    stack.reserve(64);
+
+    unsigned int nearest = 0xFFFFFFFF;
+    real_type current_nearest_dist = infinity<real_type>();
+    do
+    {
+        const auto node = stack.back(); stack.pop_back();
+        if(node.second > current_nearest_dist)
+        {
+            // if aabb mindist > already_found_mindist, it cannot have a nearest
+            continue;
+        }
+
+        const index_type L_idx = bvh.nodes_host()[node.first].left_idx;
+        const index_type R_idx = bvh.nodes_host()[node.first].right_idx;
+
+        const aabb_type& L_box = bvh.aabbs_host()[L_idx];
+        const aabb_type& R_box = bvh.aabbs_host()[R_idx];
+
+        const real_type L_mindist = mindist(L_box, q.target);
+        const real_type R_mindist = mindist(R_box, q.target);
+
+        const real_type L_minmaxdist = minmaxdist(L_box, q.target);
+        const real_type R_minmaxdist = minmaxdist(R_box, q.target);
+
+       // there should be an object that locates within minmaxdist.
+       current_nearest_dist = std::min(current_nearest_dist, L_minmaxdist);
+       current_nearest_dist = std::min(current_nearest_dist, R_minmaxdist);
+
+        if(L_mindist <= R_minmaxdist) // L is worth considering
+        {
+            const auto obj_idx = bvh.nodes_host()[L_idx].object_idx;
+            if(obj_idx != 0xFFFFFFFF) // leaf node
+            {
+                const real_type dist = calc_dist(q.target, bvh.objects_host()[obj_idx]);
+                if(dist <= current_nearest_dist)
+                {
+                    current_nearest_dist = dist;
+                    nearest = obj_idx;
+                }
+            }
+            else
+            {
+                *stack_ptr++ = std::make_pair(L_idx, L_mindist);
+            }
+        }
+        if(R_mindist <= L_minmaxdist) // R is worth considering
+        {
+            const auto obj_idx = bvh.nodes_host()[R_idx].object_idx;
+            if(obj_idx != 0xFFFFFFFF) // leaf node
+            {
+                const real_type dist = calc_dist(q.target, bvh.objects_host()[obj_idx]);
+                if(dist <= current_nearest_dist)
+                {
+                    current_nearest_dist = dist;
+                    nearest = obj_idx;
+                }
+            }
+            else
+            {
+                *stack_ptr++ = std::make_pair(R_idx, R_mindist);
+            }
+        }
+    }
+    while (stack < stack_ptr);
+    return std::make_pair(nearest, current_nearest_dist);
+}
 } // lbvh
 #endif// LBVH_QUERY_CUH
