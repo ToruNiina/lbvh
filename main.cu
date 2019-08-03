@@ -39,11 +39,11 @@ int main()
         p.z = uni(mt);
     }
 
-    lbvh::bvh<float, float4, aabb_getter> bvh(ps.begin(), ps.end());
+    lbvh::bvh<float, float4, aabb_getter> bvh(ps.begin(), ps.end(), true);
 
     const auto bvh_dev = bvh.get_device_repr();
 
-    std::cout << "testing query_device ...\n";
+    std::cout << "testing query_device:overlap ...\n";
     thrust::for_each(thrust::device,
         thrust::make_counting_iterator<std::size_t>(0),
         thrust::make_counting_iterator<std::size_t>(N),
@@ -62,7 +62,7 @@ int main()
                 query_box.lower = make_float4(self.x-r, self.y-r, self.z-r, 0);
                 query_box.upper = make_float4(self.x+r, self.y+r, self.z+r, 0);
                 const auto num_found = lbvh::query_device(
-                        bvh_dev, lbvh::overlaps(query_box), 10, buffer);
+                        bvh_dev, lbvh::overlaps(query_box), buffer, 10);
 
                 for(unsigned int j=0; j<10; ++j)
                 {
@@ -86,7 +86,7 @@ int main()
             return ;
         });
 
-    std::cout << "testing query_device_nearest_neighbor ...\n";
+    std::cout << "testing query_device:nearest_neighbor ...\n";
     thrust::for_each(thrust::device,
         thrust::make_counting_iterator<unsigned int>(0),
         thrust::make_counting_iterator<unsigned int>(N),
@@ -103,5 +103,34 @@ int main()
             return ;
         });
 
+    std::cout << "testing query_host:overlap ...\n";
+    {
+        for(std::size_t i=0; i<10; ++i)
+        {
+            const auto self = bvh.objects_host()[i];
+            const float dr = 0.1f;
+            for(unsigned int cnt=1; cnt<10; ++cnt)
+            {
+                const float r = dr * cnt;
+                lbvh::aabb<float> query_box;
+                query_box.lower = make_float4(self.x-r, self.y-r, self.z-r, 0);
+                query_box.upper = make_float4(self.x+r, self.y+r, self.z+r, 0);
+
+                std::vector<std::size_t> buffer;
+                const auto num_found = lbvh::query_host(bvh,
+                        lbvh::overlaps(query_box), std::back_inserter(buffer));
+
+                for(unsigned int jdx : buffer)
+                {
+                    assert(jdx < bvh.objects_host().size());
+
+                    const auto other  = bvh.objects_host()[jdx];
+                    assert(fabsf(self.x - other.x) < r); // check coordinates
+                    assert(fabsf(self.y - other.y) < r); // are in the range
+                    assert(fabsf(self.z - other.z) < r); // of query box
+                }
+            }
+        }
+    }
     return 0;
 }
