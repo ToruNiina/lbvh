@@ -1,6 +1,7 @@
 #include "lbvh.cuh"
 #include <random>
 #include <vector>
+#include <thrust/random.h>
 
 struct aabb_getter
 {
@@ -94,12 +95,48 @@ int main()
             const auto self = bvh_dev.objects[idx];
             const auto nest = lbvh::query_device(bvh_dev, lbvh::nearest(self),
                                                  distance_calculator());
+            assert(nest.first != 0xFFFFFFFF);
             const auto other   = bvh_dev.objects[nest.first];
             // of course, the nearest object is itself.
             assert(nest.second == 0.0f);
             assert(self.x == other.x);
             assert(self.y == other.y);
             assert(self.z == other.z);
+            return ;
+       });
+
+    thrust::device_vector<float4> random_points(N);
+    thrust::transform(
+        thrust::make_counting_iterator<unsigned int>(0),
+        thrust::make_counting_iterator<unsigned int>(N),
+        random_points.begin(), [] __device__(const unsigned int idx) {
+            thrust::default_random_engine rand;
+            thrust::uniform_real_distribution<float> uni(0.0f, 1.0f);
+            rand.discard(idx);
+            const float x = uni(rand);
+            const float y = uni(rand);
+            const float z = uni(rand);
+            return make_float4(x, y, z, 0);
+        });
+
+    thrust::for_each(random_points.begin(), random_points.end(),
+        [bvh_dev] __device__ (const float4 pos) {
+            const auto calc = distance_calculator();
+            const auto nest = lbvh::query_device(bvh_dev, lbvh::nearest(pos), calc);
+            assert(nest.first != 0xFFFFFFFF);
+
+            for(unsigned int i=0; i<bvh_dev.num_objects; ++i)
+            {
+                const auto dist = calc(bvh_dev.objects[i], pos);
+                if(i == nest.first)
+                {
+                    assert(dist == nest.second);
+                }
+                else
+                {
+                    assert(dist >= nest.second);
+                }
+            }
             return ;
         });
 
