@@ -115,9 +115,7 @@ thrust::pair<unsigned int, Real> query_device(
         const real_type L_minmaxdist = minmaxdist(L_box, q.target);
         const real_type R_minmaxdist = minmaxdist(R_box, q.target);
 
-       // there should be an object that locates within minmaxdist.
-       dist_to_nearest_object = thrust::min(dist_to_nearest_object, L_minmaxdist);
-       dist_to_nearest_object = thrust::min(dist_to_nearest_object, R_minmaxdist);
+        // there should be an object that locates within minmaxdist.
 
         if(L_mindist <= R_minmaxdist) // L is worth considering
         {
@@ -153,6 +151,7 @@ thrust::pair<unsigned int, Real> query_device(
                 *stack_ptr++ = thrust::make_pair(R_idx, R_mindist);
             }
         }
+        assert(stack_ptr < stack + 64);
     }
     while (stack < stack_ptr);
     return thrust::make_pair(nearest, dist_to_nearest_object);
