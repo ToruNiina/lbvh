@@ -57,18 +57,37 @@ inline aabb<float> merge(const aabb<float>& lhs, const aabb<float>& rhs) noexcep
 __device__ __host__
 inline float mindist(const aabb<float>& lhs, const float4& rhs) noexcept
 {
-    const float dx = ::fminf(lhs.upper.x, ::fmaxf(lhs.lower.x, rhs.x)) - rhs.x;
-    const float dy = ::fminf(lhs.upper.y, ::fmaxf(lhs.lower.y, rhs.y)) - rhs.y;
-    const float dz = ::fminf(lhs.upper.z, ::fmaxf(lhs.lower.z, rhs.z)) - rhs.z;
-    return dx * dx + dy * dy + dz * dz;
+    float x = (lhs.lower.x + lhs.upper.x) * 0.5f;
+    float y = (lhs.lower.y + lhs.upper.y) * 0.5f;
+    float z = (lhs.lower.z + lhs.upper.z) * 0.5f;
+    
+    float dx = lhs.upper.x - lhs.lower.x;
+    float dy = lhs.upper.y - lhs.lower.y;
+    float dz = lhs.upper.z - lhs.lower.z;
+    
+    float ddx = ::fmaxf(::fabsf(rhs.x - x) - dx / 2, 0.0f);
+    float ddy = ::fmaxf(::fabsf(rhs.y - y) - dy / 2, 0.0f);
+    float ddz = ::fmaxf(::fabsf(rhs.z - z) - dz / 2, 0.0f);
+    
+    return ddx * ddx + ddy * ddy + ddz * ddz;
 }
+
 __device__ __host__
 inline double mindist(const aabb<double>& lhs, const double4& rhs) noexcept
 {
-    const double dx = ::fmin(lhs.upper.x, ::fmax(lhs.lower.x, rhs.x)) - rhs.x;
-    const double dy = ::fmin(lhs.upper.y, ::fmax(lhs.lower.y, rhs.y)) - rhs.y;
-    const double dz = ::fmin(lhs.upper.z, ::fmax(lhs.lower.z, rhs.z)) - rhs.z;
-    return dx * dx + dy * dy + dz * dz;
+    double x = (lhs.lower.x + lhs.upper.x) * 0.5;
+    double y = (lhs.lower.y + lhs.upper.y) * 0.5;
+    double z = (lhs.lower.z + lhs.upper.z) * 0.5;
+    
+    double dx = lhs.upper.x - lhs.lower.x;
+    double dy = lhs.upper.y - lhs.lower.y;
+    double dz = lhs.upper.z - lhs.lower.z;
+    
+    double ddx = ::fmax(::fabs(rhs.x - x) - dx / 2, 0.0);
+    double ddy = ::fmax(::fabs(rhs.y - y) - dy / 2, 0.0);
+    double ddz = ::fmax(::fabs(rhs.z - z) - dz / 2, 0.0);
+    
+    return ddx * ddx + ddy * ddy + ddz * ddz;
 }
 
 __device__ __host__
@@ -80,18 +99,20 @@ inline float minmaxdist(const aabb<float>& lhs, const float4& rhs) noexcept
     float3 rM_sq = make_float3((lhs.upper.x - rhs.x) * (lhs.upper.x - rhs.x),
                                (lhs.upper.y - rhs.y) * (lhs.upper.y - rhs.y),
                                (lhs.upper.z - rhs.z) * (lhs.upper.z - rhs.z));
-    if((lhs.upper.x + lhs.lower.x) * 0.5 < rhs.x)
+    
+    if((lhs.upper.x + lhs.lower.x) * 0.5f < rhs.x)
     {
         thrust::swap(rm_sq.x, rM_sq.x);
     }
-    if((lhs.upper.y + lhs.lower.y) * 0.5 < rhs.y)
+    if((lhs.upper.y + lhs.lower.y) * 0.5f < rhs.y)
     {
         thrust::swap(rm_sq.y, rM_sq.y);
     }
-    if((lhs.upper.z + lhs.lower.z) * 0.5 < rhs.z)
+    if((lhs.upper.z + lhs.lower.z) * 0.5f < rhs.z)
     {
         thrust::swap(rm_sq.z, rM_sq.z);
     }
+    
     const float dx = rm_sq.x + rM_sq.y + rM_sq.z;
     const float dy = rM_sq.x + rm_sq.y + rM_sq.z;
     const float dz = rM_sq.x + rM_sq.y + rm_sq.z;
@@ -107,6 +128,7 @@ inline double minmaxdist(const aabb<double>& lhs, const double4& rhs) noexcept
     double3 rM_sq = make_double3((lhs.upper.x - rhs.x) * (lhs.upper.x - rhs.x),
                                  (lhs.upper.y - rhs.y) * (lhs.upper.y - rhs.y),
                                  (lhs.upper.z - rhs.z) * (lhs.upper.z - rhs.z));
+
     if((lhs.upper.x + lhs.lower.x) * 0.5 < rhs.x)
     {
         thrust::swap(rm_sq.x, rM_sq.x);
@@ -119,10 +141,11 @@ inline double minmaxdist(const aabb<double>& lhs, const double4& rhs) noexcept
     {
         thrust::swap(rm_sq.z, rM_sq.z);
     }
+
     const double dx = rm_sq.x + rM_sq.y + rM_sq.z;
     const double dy = rM_sq.x + rm_sq.y + rM_sq.z;
     const double dz = rM_sq.x + rM_sq.y + rm_sq.z;
-    return ::fminf(dx, ::fminf(dy, dz));
+    return ::fmin(dx, ::fmin(dy, dz));
 }
 
 template<typename T>

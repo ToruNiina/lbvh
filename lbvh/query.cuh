@@ -269,8 +269,6 @@ std::pair<unsigned int, Real> query_host(
         const real_type R_minmaxdist = minmaxdist(R_box, q.target);
 
        // there should be an object that locates within minmaxdist.
-       current_nearest_dist = std::min(current_nearest_dist, L_minmaxdist);
-       current_nearest_dist = std::min(current_nearest_dist, R_minmaxdist);
 
         if(L_mindist <= R_minmaxdist) // L is worth considering
         {
