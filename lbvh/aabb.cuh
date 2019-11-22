@@ -57,37 +57,19 @@ inline aabb<float> merge(const aabb<float>& lhs, const aabb<float>& rhs) noexcep
 __device__ __host__
 inline float mindist(const aabb<float>& lhs, const float4& rhs) noexcept
 {
-    float x = (lhs.lower.x + lhs.upper.x) * 0.5f;
-    float y = (lhs.lower.y + lhs.upper.y) * 0.5f;
-    float z = (lhs.lower.z + lhs.upper.z) * 0.5f;
-    
-    float dx = lhs.upper.x - lhs.lower.x;
-    float dy = lhs.upper.y - lhs.lower.y;
-    float dz = lhs.upper.z - lhs.lower.z;
-    
-    float ddx = ::fmaxf(::fabsf(rhs.x - x) - dx / 2, 0.0f);
-    float ddy = ::fmaxf(::fabsf(rhs.y - y) - dy / 2, 0.0f);
-    float ddz = ::fmaxf(::fabsf(rhs.z - z) - dz / 2, 0.0f);
-    
-    return ddx * ddx + ddy * ddy + ddz * ddz;
+    const float dx = ::fminf(lhs.upper.x, ::fmaxf(lhs.lower.x, rhs.x)) - rhs.x;
+    const float dy = ::fminf(lhs.upper.y, ::fmaxf(lhs.lower.y, rhs.y)) - rhs.y;
+    const float dz = ::fminf(lhs.upper.z, ::fmaxf(lhs.lower.z, rhs.z)) - rhs.z;
+    return dx * dx + dy * dy + dz * dz;
 }
 
 __device__ __host__
 inline double mindist(const aabb<double>& lhs, const double4& rhs) noexcept
 {
-    double x = (lhs.lower.x + lhs.upper.x) * 0.5;
-    double y = (lhs.lower.y + lhs.upper.y) * 0.5;
-    double z = (lhs.lower.z + lhs.upper.z) * 0.5;
-    
-    double dx = lhs.upper.x - lhs.lower.x;
-    double dy = lhs.upper.y - lhs.lower.y;
-    double dz = lhs.upper.z - lhs.lower.z;
-    
-    double ddx = ::fmax(::fabs(rhs.x - x) - dx / 2, 0.0);
-    double ddy = ::fmax(::fabs(rhs.y - y) - dy / 2, 0.0);
-    double ddz = ::fmax(::fabs(rhs.z - z) - dz / 2, 0.0);
-    
-    return ddx * ddx + ddy * ddy + ddz * ddz;
+    const double dx = ::fmin(lhs.upper.x, ::fmax(lhs.lower.x, rhs.x)) - rhs.x;
+    const double dy = ::fmin(lhs.upper.y, ::fmax(lhs.lower.y, rhs.y)) - rhs.y;
+    const double dz = ::fmin(lhs.upper.z, ::fmax(lhs.lower.z, rhs.z)) - rhs.z;
+    return dx * dx + dy * dy + dz * dz;
 }
 
 __device__ __host__
