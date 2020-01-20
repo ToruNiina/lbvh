@@ -19,9 +19,9 @@ struct distance_calculator
     __device__
     float operator()(const float4 point, const float4 object) const noexcept
     {
-        return ::sqrtf((point.x - object.x) * (point.x - object.x) +
-                       (point.y - object.y) * (point.y - object.y) +
-                       (point.z - object.z) * (point.z - object.z));
+        return (point.x - object.x) * (point.x - object.x) +
+               (point.y - object.y) * (point.y - object.y) +
+               (point.z - object.z) * (point.z - object.z);
     }
 };
 
