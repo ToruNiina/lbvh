@@ -46,7 +46,7 @@ struct distance_calculator
     __device__
     float operator()(const float4 pos, const object& f) const noexcept
     {
-        // calculate distance...
+        // calculate square distance...
     }
 };
 
