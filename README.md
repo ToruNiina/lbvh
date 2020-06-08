@@ -20,12 +20,14 @@ Also, nearest neighbor query based on the following paper is supported.
 
 - Nick Roussopoulos, Stephen Kelley, Frederic Vincent, "Nearest Neighbor Queries", ACM-SIGMOD (1995)
 
-## sample code
+## example code
 
 ```cpp
 struct object
 {
     // any object you want.
+    // For example, sphere.
+    float4 xyzr;
 };
 
 struct aabb_getter
@@ -36,17 +38,26 @@ struct aabb_getter
     lbvh::aabb<float> operator()(const object& f) const noexcept
     {
         // calculate aabb of object ...
+        const float r = f.xyzr.r;
+        lbvh::aabb<float> box;
+        box.upper = make_float4(f.xyzr.x + r, f.xyzr.y + r, f.xyzr.z + r, 0.0f);
+        box.lower = make_float4(f.xyzr.x - r, f.xyzr.y - r, f.xyzr.z - r, 0.0f);
+        return box;
     }
 };
 
 // this struct will be used in nearest neighbor query (If you don't need nearest
 // neighbor query, you don't need to implement this).
-struct distance_calculator
+struct distance_sq_calculator
 {
     __device__
     float operator()(const float4 pos, const object& f) const noexcept
     {
         // calculate square distance...
+        const float dx = pos.x - f.xyzr.x;
+        const float dy = pos.y - f.xyzr.y;
+        const float dz = pos.z - f.xyzr.z;
+        return dx * dx + dy * dy + dz * dz;
     }
 };
 
@@ -90,7 +101,7 @@ int main()
             }
 
             const float3 pos = make_float3(0.0, 1.0, 2.0);
-            const auto nearest = query_device(bvh_dev, nearest(pos), distance_calculator());
+            const auto nearest = query_device(bvh_dev, nearest(pos), distance_sq_calculator());
 
             return ;
         });
